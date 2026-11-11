@@ -10,7 +10,7 @@ int yylex(void);
 void yyerror(const char *s);
 
 past ast_root = NULL;
-static past normalize_array_initializer(past dims, past init);
+
 
 /* 复制字符串，避免依赖非标准的 strdup */
 static char *copy_text(const char *s)
@@ -59,7 +59,8 @@ static past make_var_decl(char *name, past dims, past init)
     var->svalue = copy_text(name);
     /* Array dimensions belong to the declared type, not to the AST children
        shown for a VarDecl. Keep the initializer as its first AST child. */
-    var->left = normalize_array_initializer(dims, init);
+    var->left = init;
+    var->right = dims;
     return var;
 }
 
@@ -83,30 +84,12 @@ static past make_func(char *name, past params, past body)
 }
 
 /* 构造函数参数节点 */
-static past make_param(char *name, past dims)
+static past make_param(char *name, past dimensions)
 {
     past node = newAstNode(PARM_DECL);
-    past bounds = NULL;
     node->svalue = copy_text(name);
-    /* Match the accepted lab output for a parameter written as a[][N].
-       Only bounds following the empty first dimension are passed here. */
-    while (dims != NULL) {
-        past next = dims->next;
-        dims->next = NULL;
-        dims->left = bounds;
-        bounds = dims;
-        dims = next;
-    }
-    node->left = bounds;
-    return node;
-}
-
-/* 构造数组下标节点 */
-static past make_array_subscript(past base, past index)
-{
-    past node = newAstNode(ARRAY_SUBSCRIPT_EXPR);
-    node->left = base;
-    node->right = index;
+    if (dimensions) dimensions->right = NULL;
+    node->right = dimensions;
     return node;
 }
 
@@ -116,109 +99,6 @@ static past make_init_list(past values)
     past node = newAstNode(INIT_LIST_EXPR);
     node->left = values;
     return node;
-}
-
-static int eval_const_int(past node, int *value)
-{
-    long long result;
-    int left;
-    int right;
-
-    if (node == NULL)
-        return 0;
-
-    if (node->nodeType == INTEGER_LITERAL) {
-        *value = node->ivalue;
-        return 1;
-    }
-    if (node->nodeType == PAREN_EXPR)
-        return eval_const_int(node->left, value);
-    if (node->nodeType == UNARY_OPERATOR) {
-        if (!eval_const_int(node->left, &left))
-            return 0;
-        if (node->ivalue == Y_ADD)
-            result = left;
-        else if (node->ivalue == Y_SUB)
-            result = -(long long)left;
-        else if (node->ivalue == Y_NOT)
-            result = !left;
-        else
-            return 0;
-    } else if (node->nodeType == BINARY_OPERATOR) {
-        if (!eval_const_int(node->left, &left) ||
-            !eval_const_int(node->right, &right))
-            return 0;
-        switch (node->ivalue) {
-        case Y_ADD: result = (long long)left + right; break;
-        case Y_SUB: result = (long long)left - right; break;
-        case Y_MUL: result = (long long)left * right; break;
-        case Y_DIV:
-            if (right == 0) return 0;
-            result = (long long)left / right;
-            break;
-        case Y_MODULO:
-            if (right == 0) return 0;
-            result = (long long)left % right;
-            break;
-        default:
-            return 0;
-        }
-    } else {
-        return 0;
-    }
-
-    if (result < INT_MIN || result > INT_MAX)
-        return 0;
-    *value = (int)result;
-    return 1;
-}
-
-/* Match the accepted lab implementation's VarDef initializer layout:
-   preserve explicit lists and group complete scalar runs by the last bound.
-   This rule also applies to one-dimensional non-const arrays. ConstDef keeps
-   its explicitly written initializer structure and does not call this rule. */
-static past normalize_array_initializer(past dims, past init)
-{
-    int width;
-    past values;
-    past result = NULL;
-
-    if (dims == NULL || init == NULL || init->nodeType != INIT_LIST_EXPR)
-        return init;
-
-    while (dims->next != NULL)
-        dims = dims->next;
-    if (!eval_const_int(dims->right, &width) || width <= 0)
-        return init;
-
-    values = init->left;
-    while (values != NULL) {
-        past first = values;
-        past last = NULL;
-        int count = 0;
-
-        if (values->nodeType == INIT_LIST_EXPR) {
-            values = values->next;
-            first->next = NULL;
-            result = appendAst(result, first);
-            continue;
-        }
-
-        while (values != NULL && values->nodeType != INIT_LIST_EXPR &&
-               count < width) {
-            last = values;
-            values = values->next;
-            ++count;
-        }
-        last->next = NULL;
-        if (count == width)
-            result = appendAst(result, make_init_list(first));
-        else
-            /* Preserve incomplete runs instead of losing source expressions. */
-            result = appendAst(result, first);
-    }
-    init->left = result;
-    return init;
 }
 
 /* 构造复合语句 */
@@ -281,7 +161,7 @@ static past make_call(char *name, past args)
 %type <node> Exp Cond LVal ArraySubscripts
 %type <node> PrimaryExp UnaryExp FuncCall CallParams
 %type <node> MulExp AddExp RelExp EqExp LAndExp LOrExp
-%type <node> Type
+%type <ivalue> Type
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc Y_ELSE
@@ -333,6 +213,7 @@ ConstDecl
     : Y_CONST Type ConstDefs Y_SEMICOLON
       {
           $$ = make_decl_stmt($3, 1);
+          for (past var = $3; var; var = var->next) var->is_float = $2 == Y_FLOAT;
       }
     ;
 
@@ -350,13 +231,13 @@ ConstDefs
 ConstDef
     : Y_ID Y_ASSIGN ConstInitVal
       {
-          $$ = make_var_decl($1, NULL, $3);
+          $$ = make_var_decl($1, NULL, $3); $$->is_const = 1;
       }
     | Y_ID ConstExps Y_ASSIGN ConstInitVal
       {
           /* The accepted ConstDef action keeps the written brace structure;
              only VarDef performs scalar-run grouping. Bounds are type data. */
-          yyerror("array declarations are outside the scalar int subset"); YYABORT;
+          $$ = make_var_decl($1, $2, $4); $$->is_const = 1;
       }
     ;
 
@@ -406,6 +287,7 @@ VarDecl
     : Type VarDecls Y_SEMICOLON
       {
           $$ = make_decl_stmt($2, 0);
+          for (past var = $2; var; var = var->next) var->is_float = $1 == Y_FLOAT;
       }
     ;
 
@@ -431,11 +313,11 @@ VarDef
       }
     | Y_ID ConstExps
       {
-          yyerror("array declarations are outside the scalar int subset"); YYABORT;
+          $$ = make_var_decl($1, $2, NULL);
       }
     | Y_ID ConstExps Y_ASSIGN InitVal
       {
-          yyerror("array declarations are outside the scalar int subset"); YYABORT;
+          $$ = make_var_decl($1, $2, $4);
       }
     ;
 
@@ -470,11 +352,30 @@ InitVals
 FuncDef
     : Type Y_ID Y_LPAR Y_RPAR Block
       {
-          $$ = make_func($2, NULL, $5);
+          $$ = make_func($2, NULL, $5); $$->is_float = $1 == Y_FLOAT;
+      }
+    | Type Y_ID Y_LPAR Y_VOID Y_RPAR Block
+      {
+          $$ = make_func($2, NULL, $6); $$->is_float = $1 == Y_FLOAT;
       }
     | Type Y_ID Y_LPAR FuncParams Y_RPAR Block
       {
+          $$ = make_func($2, $4, $6); $$->is_float = $1 == Y_FLOAT;
+      }
+    | Y_VOID Y_ID Y_LPAR Y_RPAR Block
+      {
+          $$ = make_func($2, NULL, $5);
+          $$->ivalue = Y_VOID;
+      }
+    | Y_VOID Y_ID Y_LPAR Y_VOID Y_RPAR Block
+      {
+          $$ = make_func($2, NULL, $6);
+          $$->ivalue = Y_VOID;
+      }
+    | Y_VOID Y_ID Y_LPAR FuncParams Y_RPAR Block
+      {
           $$ = make_func($2, $4, $6);
+          $$->ivalue = Y_VOID;
       }
     ;
 
@@ -492,19 +393,24 @@ FuncParams
 FuncParam
     : Type Y_ID
       {
-          $$ = make_param($2, NULL);
-      }
-    | Type Y_ID Y_LSQUARE Y_RSQUARE
-      {
-          $$ = make_param($2, NULL);
+          $$ = make_param($2, NULL); $$->is_float = $1 == Y_FLOAT;
       }
     | Type Y_ID ArraySubscripts
       {
-          $$ = make_param($2, NULL);
+          if ($1 == Y_FLOAT) { yyerror("float array parameters are not supported"); YYABORT; }
+          $$ = make_param($2, $3);
+      }
+    | Type Y_ID Y_LSQUARE Y_RSQUARE
+      {
+          if ($1 == Y_FLOAT) { yyerror("float array parameters are not supported"); YYABORT; }
+          $$ = make_param($2, newAstNode(ARRAY_SUBSCRIPT_EXPR));
       }
     | Type Y_ID Y_LSQUARE Y_RSQUARE ArraySubscripts
       {
-          $$ = make_param($2, $5);
+          past first = newAstNode(ARRAY_SUBSCRIPT_EXPR);
+          first->next = $5;
+          if ($1 == Y_FLOAT) { yyerror("float array parameters are not supported"); YYABORT; }
+          $$ = make_param($2, first);
       }
     ;
 
@@ -554,9 +460,7 @@ Stmt
       }
     | Y_SEMICOLON
       {
-          /* Empty statements are omitted by the accepted lab implementation.
-             appendAst safely skips NULL even at the start of a block. */
-          $$ = NULL;
+          $$ = newAstNode(NULL_STMT);
       }
     | Exp Y_SEMICOLON
       {
@@ -607,14 +511,14 @@ Stmt
 /* 表达式 */
 
 Exp
-    : AddExp
+    : LOrExp
       {
           $$ = $1;
       }
     ;
 
 Cond
-    : LOrExp
+    : Exp
       {
           $$ = $1;
       }
@@ -799,7 +703,7 @@ LAndExp
       {
           $$ = $1;
       }
-    | EqExp Y_AND LAndExp
+    | LAndExp Y_AND EqExp
       {
           $$ = make_binary(Y_AND, $1, $3);
       }
@@ -810,17 +714,15 @@ LOrExp
       {
           $$ = $1;
       }
-    | LAndExp Y_OR LOrExp
+    | LOrExp Y_OR LAndExp
       {
           $$ = make_binary(Y_OR, $1, $3);
       }
     ;
 
 Type
-    : Y_INT
-      {
-          $$ = NULL;
-      }
+    : Y_INT   { $$ = Y_INT; }
+    | Y_FLOAT { $$ = Y_FLOAT; }
     ;
 
 %%
@@ -829,5 +731,11 @@ void yyerror(const char *s)
 {
     fprintf(stderr, "Syntax error: %s\n", s);
 }
+
+
+
+
+
+
 
 

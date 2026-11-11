@@ -9,6 +9,8 @@ typedef struct _ast *past;
 
 struct _ast {
     int ivalue;
+    int is_const;
+    int is_float;
     float fvalue;
     char *svalue;
     node_type nodeType;
@@ -27,3 +29,4 @@ void showAst(past node, int nest, bool use_blank);
 void showToken(int token);
 
 #endif
+

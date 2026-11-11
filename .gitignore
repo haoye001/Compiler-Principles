@@ -2,3 +2,9 @@
 .lr_audit_*/
 .lr_reference_*/
 .lr_report_*/
+
+*.[dD][oO][cC]
+*.[dD][oO][cC][xXmM]
+*.[oO][dD][tT]
+*实验报告*
+*[rR][eE][pP][oO][rR][tT]*

@@ -1,97 +1,84 @@
 define i32 @main() {
-bb0:
-  %t1 = alloca i32, align 4
-  %t2 = alloca i32, align 4
-  %t3 = alloca i32, align 4
-  %t4 = alloca i32, align 4
-  store i32 0, ptr %t1, align 4
-  store i32 0, ptr %t2, align 4
-  store i32 0, ptr %t3, align 4
-  br label %bb1
-bb1:
-  %t5 = load i32, ptr %t1, align 4
-  %t6 = icmp slt i32 %t5, 6
-  br i1 %t6, label %bb2, label %bb3
-bb2:
-  %t7 = load i32, ptr %t1, align 4
-  %t8 = add i32 %t7, 1
-  store i32 %t8, ptr %t1, align 4
-  %t9 = load i32, ptr %t1, align 4
-  %t10 = icmp eq i32 %t9, 2
-  br i1 %t10, label %bb4, label %bb5
-bb4:
-  br label %bb1
-bb5:
-  %t11 = load i32, ptr %t1, align 4
-  %t12 = icmp eq i32 %t11, 5
-  br i1 %t12, label %bb6, label %bb7
-bb6:
-  br label %bb3
-bb7:
-  %t13 = load i32, ptr %t1, align 4
-  %t14 = icmp ne i32 %t13, 3
-  br i1 %t14, label %bb11, label %bb12
-bb11:
-  %t15 = load i32, ptr %t1, align 4
-  %t16 = icmp sgt i32 %t15, 0
-  br label %bb12
-bb12:
-  %t17 = phi i1 [ false, %bb7 ], [ %t16, %bb11 ]
-  br i1 %t17, label %bb14, label %bb13
-bb13:
-  %t18 = load i32, ptr %t3, align 4
-  %t19 = icmp ne i32 %t18, 0
-  br i1 %t19, label %bb15, label %bb16
-bb15:
-  %t20 = load i32, ptr %t3, align 4
-  %t21 = sdiv i32 1, %t20
-  %t22 = icmp ne i32 %t21, 0
-  br label %bb16
-bb16:
-  %t23 = phi i1 [ false, %bb13 ], [ %t22, %bb15 ]
-  br label %bb14
-bb14:
-  %t24 = phi i1 [ true, %bb12 ], [ %t23, %bb16 ]
-  br i1 %t24, label %bb8, label %bb10
-bb8:
-  %t25 = load i32, ptr %t2, align 4
-  %t26 = load i32, ptr %t1, align 4
-  %t27 = mul i32 %t26, 2
-  %t28 = add i32 %t25, %t27
-  store i32 %t28, ptr %t2, align 4
-  br label %bb9
-bb10:
-  %t29 = load i32, ptr %t2, align 4
-  %t30 = sub i32 %t29, 1
-  store i32 %t30, ptr %t2, align 4
-  br label %bb9
-bb9:
-  br label %bb1
-bb3:
-  %t31 = load i32, ptr %t3, align 4
-  %t32 = icmp ne i32 %t31, 0
-  %t33 = xor i1 %t32, true
-  br i1 %t33, label %bb20, label %bb19
-bb19:
-  %t34 = load i32, ptr %t3, align 4
-  %t35 = sdiv i32 1, %t34
-  %t36 = icmp ne i32 %t35, 0
-  br label %bb20
-bb20:
-  %t37 = phi i1 [ true, %bb3 ], [ %t36, %bb19 ]
-  br i1 %t37, label %bb17, label %bb18
-bb17:
-  store i32 10, ptr %t4, align 4
-  %t38 = load i32, ptr %t2, align 4
-  %t39 = load i32, ptr %t4, align 4
-  %t40 = sub i32 0, 2
-  %t41 = add i32 %t39, %t40
-  %t42 = sdiv i32 %t41, 2
-  %t43 = srem i32 %t42, 3
-  %t44 = add i32 %t38, %t43
-  store i32 %t44, ptr %t2, align 4
-  br label %bb18
-bb18:
-  %t45 = load i32, ptr %t2, align 4
-  ret i32 %t45
+  %1 = alloca i32, align 4
+  %2 = alloca i32, align 4
+  %3 = alloca i32, align 4
+  %4 = alloca i32, align 4
+  %5 = alloca i32, align 4
+  store i32 0, i32* %1, align 4
+  store i32 0, i32* %2, align 4
+  store i32 0, i32* %3, align 4
+  store i32 0, i32* %4, align 4
+  br label %6
+6:
+  %7 = load i32, i32* %2, align 4
+  %8 = icmp slt i32 %7, 6
+  br i1 %8, label %9, label %41
+9:
+  %10 = load i32, i32* %2, align 4
+  %11 = add nsw i32 %10, 1
+  store i32 %11, i32* %2, align 4
+  %12 = load i32, i32* %2, align 4
+  %13 = icmp eq i32 %12, 2
+  br i1 %13, label %14, label %15
+14:
+  br label %6
+15:
+  %16 = load i32, i32* %2, align 4
+  %17 = icmp eq i32 %16, 5
+  br i1 %17, label %18, label %19
+18:
+  br label %41
+19:
+  %20 = load i32, i32* %2, align 4
+  %21 = icmp ne i32 %20, 3
+  br i1 %21, label %22, label %25
+22:
+  %23 = load i32, i32* %2, align 4
+  %24 = icmp sgt i32 %23, 0
+  br i1 %24, label %32, label %25
+25:
+  %26 = load i32, i32* %4, align 4
+  %27 = icmp ne i32 %26, 0
+  br i1 %27, label %28, label %37
+28:
+  %29 = load i32, i32* %4, align 4
+  %30 = sdiv i32 1, %29
+  %31 = icmp ne i32 %30, 0
+  br i1 %31, label %32, label %37
+32:
+  %33 = load i32, i32* %3, align 4
+  %34 = load i32, i32* %2, align 4
+  %35 = mul nsw i32 %34, 2
+  %36 = add nsw i32 %33, %35
+  store i32 %36, i32* %3, align 4
+  br label %40
+37:
+  %38 = load i32, i32* %3, align 4
+  %39 = sub nsw i32 %38, 1
+  store i32 %39, i32* %3, align 4
+  br label %40
+40:
+  br label %6
+41:
+  %42 = load i32, i32* %4, align 4
+  %43 = icmp ne i32 %42, 0
+  br i1 %43, label %44, label %48
+44:
+  %45 = load i32, i32* %4, align 4
+  %46 = sdiv i32 1, %45
+  %47 = icmp ne i32 %46, 0
+  br i1 %47, label %48, label %55
+48:
+  store i32 10, i32* %5, align 4
+  %49 = load i32, i32* %3, align 4
+  %50 = load i32, i32* %5, align 4
+  %51 = add nsw i32 %50, -2
+  %52 = sdiv i32 %51, 2
+  %53 = srem i32 %52, 3
+  %54 = add nsw i32 %49, %53
+  store i32 %54, i32* %3, align 4
+  br label %55
+55:
+  %56 = load i32, i32* %3, align 4
+  ret i32 %56
 }
